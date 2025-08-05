@@ -17,14 +17,20 @@ export default function ProtectedRoute({
   allowedRoles = [], 
   requireAuth = true 
 }: ProtectedRouteProps) {
-  const { isAuthenticated, user, token, getProfile, isLoading } = useAuthStore();
+  const { isAuthenticated, user, token, getProfile, isLoading, logout } = useAuthStore();
   const location = useLocation();
   
   // Try to get profile if we have token but no user data
   useEffect(() => {
     if (token && !user && !isLoading) {
-      getProfile().catch(() => {
-        // If profile fetch fails, user will be redirected to login
+      getProfile().catch((error) => {
+        console.warn('Failed to get profile:', error.message);
+        // Don't redirect immediately, let user try to use the app
+        // Only redirect if it's an authentication error
+        if (error.message.includes('Session expired') || error.message.includes('Invalid token')) {
+          // Token is invalid, clear auth state
+          logout();
+        }
       });
     }
   }, [token, user, isLoading, getProfile]);

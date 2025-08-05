@@ -1,7 +1,5 @@
 # TODO:
 
-- [x] update-app-routing: Update App.tsx dengan semua routing yang diperlukan untuk semua halaman (priority: High)
-- [x] create-guru-reports: Buat halaman Reports untuk Guru (/guru/reports) (priority: High)
-- [x] create-siswa-absensi: Buat halaman Absensi untuk Siswa (/siswa/absensi) (priority: High)
-- [x] create-siswa-jurnal: Buat halaman Jurnal untuk Siswa (/siswa/jurnal) (priority: High)
-- [x] test-navigation: Test navigasi sidebar ke setiap halaman yang sesuai (priority: Medium)
+- [x] fix-username-validation: Perbaiki validasi username di userController.ts dan User model (mengganti titik dengan underscore) (priority: High)
+- [x] test-add-user-functionality: Test fungsi tambah pengguna melalui UI untuk memastikan perbaikan berhasil (priority: High)
+- [x] check-authentication-issues: Periksa masalah autentikasi yang menyebabkan error 401 pada POST /api/users (priority: Medium)

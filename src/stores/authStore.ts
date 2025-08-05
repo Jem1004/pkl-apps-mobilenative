@@ -6,7 +6,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface User {
-  id: string;
+  _id: string;
   nama: string;
   username: string;
   email: string;
@@ -14,12 +14,7 @@ export interface User {
   nis?: string;
   nip?: string;
   kelas?: string;
-  tempat_pkl?: {
-    _id: string;
-    nama: string;
-    alamat: string;
-  };
-  status: 'active' | 'inactive';
+  status: 'aktif' | 'nonaktif';
 }
 
 interface AuthState {
@@ -104,32 +99,74 @@ export const useAuthStore = create<AuthStore>()(
       getProfile: async () => {
         try {
           const { token } = get();
-          if (!token) throw new Error('No token available');
+          if (!token) {
+            throw new Error('No authentication token available');
+          }
 
           set({ isLoading: true, error: null });
 
           const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+            method: 'GET',
             headers: {
               'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
             },
           });
 
+          // Check if response is ok first
+          if (!response.ok) {
+            // Handle different HTTP status codes
+            if (response.status === 401) {
+              // Token expired or invalid, logout user
+              set({
+                user: null,
+                token: null,
+                isAuthenticated: false,
+                isLoading: false,
+                error: 'Session expired. Please login again.',
+              });
+              throw new Error('Session expired');
+            } else if (response.status === 404) {
+              throw new Error('User profile not found');
+            } else if (response.status === 500) {
+              throw new Error('Server error. Please try again later.');
+            } else {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+          }
+
+          // Check if response has content
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Invalid response format from server');
+          }
+
           const data = await response.json();
 
-          if (!response.ok) {
-            throw new Error(data.message || 'Failed to get profile');
+          // Validate response structure
+          if (!data || !data.success || !data.data || !data.data.user) {
+            throw new Error(data?.error || 'Invalid profile data received');
           }
 
           set({
             user: data.data.user,
+            isAuthenticated: true,
             isLoading: false,
             error: null,
           });
         } catch (error) {
+          console.error('Get profile error:', error);
           set({
             isLoading: false,
             error: error instanceof Error ? error.message : 'Failed to get profile',
           });
+          
+          // Don't throw error if it's a network issue, just log it
+          if (error instanceof Error && error.message.includes('fetch')) {
+            console.warn('Network error getting profile, user may be offline');
+            return;
+          }
+          
           throw error;
         }
       },

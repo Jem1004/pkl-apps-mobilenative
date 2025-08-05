@@ -12,8 +12,7 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
       role,
       status,
       search,
-      kelas,
-      tempat_pkl
+      kelas
     } = req.query;
 
     const pageNum = parseInt(page as string);
@@ -26,7 +25,6 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
     if (role) filter.role = role;
     if (status) filter.status = status;
     if (kelas) filter.kelas = kelas;
-    if (tempat_pkl) filter.tempat_pkl = tempat_pkl;
     
     if (search) {
       filter.$or = [
@@ -39,7 +37,6 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
 
     // Get users with pagination
     const users = await User.find(filter)
-      .populate('tempat_pkl', 'nama alamat')
       .select('-password')
       .sort({ created_at: -1 })
       .skip(skip)
@@ -75,7 +72,6 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
     const { id } = req.params;
 
     const user = await User.findById(id)
-      .populate('tempat_pkl', 'nama alamat kontak')
       .select('-password');
 
     if (!user) {
@@ -110,49 +106,60 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       nis,
       nip,
       kelas,
-      tempat_pkl,
       status = 'aktif'
     } = req.body;
 
     // Validation
-    if (!nama || !email || !password || !role) {
+    if (!nama || !password || !role) {
       res.status(400).json({
         success: false,
-        error: 'Nama, email, password, and role are required'
+        error: 'Nama, password, and role are required'
       });
       return;
     }
 
-    // Role-specific validation
-    if (role === 'siswa' && (!nis || !kelas || !tempat_pkl)) {
+    // Role-specific validation - kelas required for siswa
+    if (role === 'siswa' && !kelas) {
       res.status(400).json({
         success: false,
-        error: 'NIS, kelas, and tempat_pkl are required for siswa'
+        error: 'Kelas is required for siswa'
       });
       return;
     }
 
+    // NIS and NIP are optional, will be auto-generated if not provided
+
+    // Check if email already exists (only if email is provided)
+    if (email) {
+      const existingUser = await User.findOne({ email: email.toLowerCase() });
+      if (existingUser) {
+        res.status(400).json({
+          success: false,
+          error: 'Email already exists'
+        });
+        return;
+      }
+    }
+
+    // Auto-generate NIS for siswa if not provided
+    let finalNis = nis;
+    if (role === 'siswa' && !nis) {
+      const lastSiswa = await User.findOne({ role: 'siswa' }).sort({ nis: -1 });
+      const lastNisNumber = lastSiswa?.nis ? parseInt(lastSiswa.nis) : 20240000;
+      finalNis = (lastNisNumber + 1).toString();
+    }
+
+    // Auto-generate NIP for guru if not provided
+    let finalNip = nip;
     if (role === 'guru' && !nip) {
-      res.status(400).json({
-        success: false,
-        error: 'NIP is required for guru'
-      });
-      return;
-    }
-
-    // Check if email already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      res.status(400).json({
-        success: false,
-        error: 'Email already exists'
-      });
-      return;
+      const lastGuru = await User.findOne({ role: 'guru' }).sort({ nip: -1 });
+      const lastNipNumber = lastGuru?.nip ? parseInt(lastGuru.nip) : 19800000;
+      finalNip = (lastNipNumber + 1).toString();
     }
 
     // Check if NIS already exists (for siswa)
-    if (role === 'siswa' && nis) {
-      const existingNIS = await User.findOne({ nis });
+    if (role === 'siswa' && finalNis) {
+      const existingNIS = await User.findOne({ nis: finalNis });
       if (existingNIS) {
         res.status(400).json({
           success: false,
@@ -163,8 +170,8 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Check if NIP already exists (for guru)
-    if (role === 'guru' && nip) {
-      const existingNIP = await User.findOne({ nip });
+    if (role === 'guru' && finalNip) {
+      const existingNIP = await User.findOne({ nip: finalNip });
       if (existingNIP) {
         res.status(400).json({
           success: false,
@@ -174,43 +181,48 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       }
     }
 
-    // Validate tempat_pkl exists (for siswa)
-    if (role === 'siswa' && tempat_pkl) {
-      const tempatPKLExists = await TempatPKL.findById(tempat_pkl);
-      if (!tempatPKLExists) {
-        res.status(400).json({
-          success: false,
-          error: 'Tempat PKL not found'
-        });
-        return;
-      }
+
+
+    // Auto-generate unique username (only letters, numbers, and underscores)
+    const cleanNama = nama.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+    let username = `${cleanNama}_${role}`;
+    
+    // Check if username exists and make it unique
+    let counter = 1;
+    let baseUsername = username;
+    while (await User.findOne({ username })) {
+      username = `${baseUsername}_${counter}`;
+      counter++;
     }
 
     // Create user
     const userData: Partial<IUser> = {
       nama,
-      email: email.toLowerCase(),
+      username,
       password,
       role,
       status
     };
 
+    // Add email only if provided
+    if (email) {
+      userData.email = email.toLowerCase();
+    }
+
     if (role === 'siswa') {
-      userData.nis = nis;
+      userData.nis = finalNis;
       userData.kelas = kelas;
-      userData.tempat_pkl = tempat_pkl;
     }
 
     if (role === 'guru') {
-      userData.nip = nip;
+      userData.nip = finalNip;
     }
 
     const user = new User(userData);
     await user.save();
 
-    // Populate and return user without password
+    // Return user without password
     const newUser = await User.findById(user._id)
-      .populate('tempat_pkl', 'nama alamat')
       .select('-password');
 
     res.status(201).json({
@@ -246,7 +258,6 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       nis,
       nip,
       kelas,
-      tempat_pkl,
       status
     } = req.body;
 
@@ -284,7 +295,6 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     if (role === 'siswa' || user.role === 'siswa') {
       if (nis) updateData.nis = nis;
       if (kelas) updateData.kelas = kelas;
-      if (tempat_pkl) updateData.tempat_pkl = tempat_pkl;
     }
     
     if (role === 'guru' || user.role === 'guru') {
@@ -295,7 +305,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('tempat_pkl', 'nama alamat').select('-password');
+    ).select('-password');
 
     res.status(200).json({
       success: true,
@@ -427,24 +437,26 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
         const row = data[i] as any;
         
         // Validate required fields
-        if (!row.nama || !row.email || !row.password || !row.role) {
+        if (!row.nama || !row.password || !row.role) {
           results.failed++;
-          results.errors.push(`Row ${i + 2}: Missing required fields (nama, email, password, role)`);
+          results.errors.push(`Row ${i + 2}: Missing required fields (nama, password, role)`);
           continue;
         }
 
-        // Check if email already exists
-        const existingUser = await User.findOne({ email: row.email.toLowerCase() });
-        if (existingUser) {
-          results.failed++;
-          results.errors.push(`Row ${i + 2}: Email ${row.email} already exists`);
-          continue;
+        // Check if email already exists (only if email is provided)
+        if (row.email) {
+          const existingUser = await User.findOne({ email: row.email.toLowerCase() });
+          if (existingUser) {
+            results.failed++;
+            results.errors.push(`Row ${i + 2}: Email ${row.email} already exists`);
+            continue;
+          }
         }
 
         // Role-specific validation
-        if (row.role === 'siswa' && (!row.nis || !row.kelas || !row.tempat_pkl)) {
+        if (row.role === 'siswa' && (!row.nis || !row.kelas)) {
           results.failed++;
-          results.errors.push(`Row ${i + 2}: Missing required fields for siswa (nis, kelas, tempat_pkl)`);
+          results.errors.push(`Row ${i + 2}: Missing required fields for siswa (nis, kelas)`);
           continue;
         }
 
@@ -457,16 +469,19 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
         // Create user data
         const userData: Partial<IUser> = {
           nama: row.nama,
-          email: row.email.toLowerCase(),
           password: row.password,
           role: row.role,
           status: row.status || 'aktif'
         };
 
+        // Add email only if provided
+        if (row.email) {
+          userData.email = row.email.toLowerCase();
+        }
+
         if (row.role === 'siswa') {
           userData.nis = row.nis;
           userData.kelas = row.kelas;
-          userData.tempat_pkl = row.tempat_pkl;
         }
 
         if (row.role === 'guru') {
@@ -498,21 +513,139 @@ export const importUsers = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Import users from CSV (bulk import)
+export const importUsersFromCSV = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { users } = req.body;
+
+    if (!users || !Array.isArray(users) || users.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Users array is required and cannot be empty'
+      });
+      return;
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as string[]
+    };
+
+    for (let i = 0; i < users.length; i++) {
+      try {
+        const userData = users[i];
+        
+        // Validate required fields
+        if (!userData.nama || !userData.password || !userData.role) {
+          results.failed++;
+          results.errors.push(`Row ${i + 1}: Missing required fields (nama, password, role)`);
+          continue;
+        }
+
+        // Check if email already exists (only if email is provided)
+        if (userData.email) {
+          const existingUser = await User.findOne({ email: userData.email.toLowerCase() });
+          if (existingUser) {
+            results.failed++;
+            results.errors.push(`Row ${i + 1}: Email ${userData.email} already exists`);
+            continue;
+          }
+        }
+
+        // Check if NIS already exists (for siswa)
+        if (userData.role === 'siswa' && userData.nis) {
+          const existingNIS = await User.findOne({ nis: userData.nis });
+          if (existingNIS) {
+            results.failed++;
+            results.errors.push(`Row ${i + 1}: NIS ${userData.nis} already exists`);
+            continue;
+          }
+        }
+
+        // Check if NIP already exists (for guru)
+        if (userData.role === 'guru' && userData.nip) {
+          const existingNIP = await User.findOne({ nip: userData.nip });
+          if (existingNIP) {
+            results.failed++;
+            results.errors.push(`Row ${i + 1}: NIP ${userData.nip} already exists`);
+            continue;
+          }
+        }
+
+        // Role-specific validation
+        if (userData.role === 'siswa' && (!userData.nis || !userData.kelas)) {
+          results.failed++;
+          results.errors.push(`Row ${i + 1}: Missing required fields for siswa (nis, kelas)`);
+          continue;
+        }
+
+        if (userData.role === 'guru' && !userData.nip) {
+          results.failed++;
+          results.errors.push(`Row ${i + 1}: Missing NIP for guru`);
+          continue;
+        }
+
+        // Create user data object
+        const newUserData: Partial<IUser> = {
+          nama: userData.nama,
+          password: userData.password,
+          role: userData.role,
+          status: userData.status || 'aktif'
+        };
+
+        // Add email only if provided
+        if (userData.email) {
+          newUserData.email = userData.email.toLowerCase();
+        }
+
+        if (userData.role === 'siswa') {
+          newUserData.nis = userData.nis;
+          newUserData.kelas = userData.kelas;
+        }
+
+        if (userData.role === 'guru') {
+          newUserData.nip = userData.nip;
+        }
+
+        // Create user
+        const user = new User(newUserData);
+        await user.save();
+        
+        results.success++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'CSV import completed',
+      data: results
+    });
+  } catch (error) {
+    console.error('Import users from CSV error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
 // Export users to Excel
 export const exportUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { role, status, kelas, tempat_pkl } = req.query;
+    const { role, status, kelas } = req.query;
 
     // Build filter
     const filter: any = {};
     if (role) filter.role = role;
     if (status) filter.status = status;
     if (kelas) filter.kelas = kelas;
-    if (tempat_pkl) filter.tempat_pkl = tempat_pkl;
 
     // Get users
     const users = await User.find(filter)
-      .populate('tempat_pkl', 'nama')
       .select('-password')
       .sort({ created_at: -1 });
 
@@ -524,7 +657,7 @@ export const exportUsers = async (req: Request, res: Response): Promise<void> =>
       NIS: user.nis || '',
       NIP: user.nip || '',
       Kelas: user.kelas || '',
-      'Tempat PKL': user.tempat_pkl ? (user.tempat_pkl as any).nama : '',
+      'Tempat PKL': '',
       Status: user.status,
       'Tanggal Dibuat': user.created_at.toLocaleDateString('id-ID')
     }));

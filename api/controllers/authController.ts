@@ -21,7 +21,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Find user by username
     const user = await User.findOne({ username: username.toLowerCase() })
-      .populate('tempat_pkl', 'nama alamat')
       .select('+password');
 
     console.log('User found:', user ? { id: user._id, username: user.username, status: user.status } : 'No user found');
@@ -84,7 +83,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.user?._id)
-      .populate('tempat_pkl', 'nama alamat kontak')
       .select('-password');
 
     if (!user) {
@@ -143,7 +141,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
       userId,
       updateData,
       { new: true, runValidators: true }
-    ).populate('tempat_pkl', 'nama alamat kontak').select('-password');
+    ).select('-password');
 
     res.status(200).json({
       success: true,

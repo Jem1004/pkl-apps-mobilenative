@@ -12,6 +12,7 @@ import {
   deleteUser,
   resetPassword,
   importUsers,
+  importUsersFromCSV,
   exportUsers
 } from '../controllers/userController.ts';
 import {
@@ -99,6 +100,15 @@ router.put('/:id/reset-password', authenticateToken, adminOnly, resetPassword);
  * @access Admin only
  */
 router.post('/import', authenticateToken, adminOnly, upload.single('file'), importUsers);
+
+/**
+ * Import Users from CSV (Bulk Import)
+ * POST /api/users/import-csv
+ * @headers Authorization: Bearer <token>
+ * @body { users: Array<UserData> }
+ * @access Admin only
+ */
+router.post('/import-csv', authenticateToken, adminOnly, importUsersFromCSV);
 
 /**
  * Export Users to Excel
