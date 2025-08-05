@@ -1,5 +1,8 @@
 # TODO:
 
-- [x] fix-username-validation: Perbaiki validasi username di userController.ts dan User model (mengganti titik dengan underscore) (priority: High)
-- [x] test-add-user-functionality: Test fungsi tambah pengguna melalui UI untuk memastikan perbaikan berhasil (priority: High)
-- [x] check-authentication-issues: Periksa masalah autentikasi yang menyebabkan error 401 pada POST /api/users (priority: Medium)
+- [x] 1: Perbaiki tombol View untuk menampilkan modal detail informasi tempat PKL (priority: High)
+- [x] 2: Ubah field kontak dan alamat menjadi opsional di form dan validasi (priority: High)
+- [x] 3: Buat komponen upload file Excel/CSV untuk import data (priority: Medium)
+- [x] 4: Implementasi validasi dan preview data sebelum import (priority: Medium)
+- [x] 5: Buat API endpoint untuk bulk insert data tempat PKL (priority: Medium)
+- [x] 6: Tambahkan template download untuk format import yang benar (priority: Low)

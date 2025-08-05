@@ -129,10 +129,10 @@ export const createTempatPKL = async (req: Request, res: Response): Promise<void
     } = req.body;
 
     // Validation
-    if (!nama || !alamat || !kontak) {
+    if (!nama) {
       res.status(400).json({
         success: false,
-        error: 'Nama, alamat, and kontak are required'
+        error: 'Nama is required'
       });
       return;
     }
@@ -293,6 +293,95 @@ export const deleteTempatPKL = async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('Delete tempat PKL error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+};
+
+// Bulk import tempat PKL
+export const bulkImportTempatPKL = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { data } = req.body;
+
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Data array is required and cannot be empty'
+      });
+      return;
+    }
+
+    const results = {
+      success: [],
+      errors: [],
+      total: data.length
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      const rowNumber = i + 1;
+
+      try {
+        // Validation
+        if (!item.nama || typeof item.nama !== 'string' || item.nama.trim() === '') {
+          results.errors.push({
+            row: rowNumber,
+            data: item,
+            error: 'Nama is required and must be a non-empty string'
+          });
+          continue;
+        }
+
+        // Check if nama already exists
+        const existingTempatPKL = await TempatPKL.findOne({ 
+          nama: { $regex: new RegExp(`^${item.nama.trim()}$`, 'i') }
+        });
+        
+        if (existingTempatPKL) {
+          results.errors.push({
+            row: rowNumber,
+            data: item,
+            error: `Tempat PKL with name '${item.nama}' already exists`
+          });
+          continue;
+        }
+
+        // Create tempat PKL
+        const tempatPKLData = {
+          nama: item.nama.trim(),
+          alamat: item.alamat ? item.alamat.trim() : '',
+          kontak: item.kontak ? item.kontak.trim() : '',
+          email: item.email ? item.email.trim() : '',
+          status: item.status && ['aktif', 'tidak_aktif'].includes(item.status) ? item.status : 'aktif'
+        };
+
+        const tempatPKL = new TempatPKL(tempatPKLData);
+        await tempatPKL.save();
+
+        results.success.push({
+          row: rowNumber,
+          data: tempatPKL
+        });
+      } catch (error) {
+        results.errors.push({
+          row: rowNumber,
+          data: item,
+          error: error instanceof Error ? error.message : 'Unknown error occurred'
+        });
+      }
+    }
+
+    const statusCode = results.errors.length === 0 ? 201 : 207; // 207 Multi-Status
+
+    res.status(statusCode).json({
+      success: results.errors.length === 0,
+      message: `Import completed. ${results.success.length} items imported successfully, ${results.errors.length} items failed.`,
+      data: results
+    });
+  } catch (error) {
+    console.error('Bulk import tempat PKL error:', error);
     res.status(500).json({
       success: false,
       error: 'Internal server error'

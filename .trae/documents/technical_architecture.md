@@ -163,9 +163,9 @@ POST /api/absensi
 
 Request:
 
-| Param Name | Param Type | isRequired | Description             |
-| ---------- | ---------- | ---------- | ----------------------- |
-| type       | string     | true       | 'masuk' atau 'pulang'   |
+| Param Name | Param Type | isRequired | Description                    |
+| ---------- | ---------- | ---------- | ------------------------------ |
+| type       | string     | true       | 'masuk' atau 'pulang'          |
 | keterangan | string     | false      | Keterangan tambahan (optional) |
 
 **Get Absensi History**
@@ -190,7 +190,7 @@ Request:
 | kegiatan          | string     | true       | Deskripsi kegiatan                    |
 | pembelajaran      | string     | false      | Pembelajaran yang didapat             |
 | kendala           | string     | false      | Kendala yang dihadapi                 |
-| link_dokumentasi  | string     | false      | Link Google Drive untuk foto kegiatan |
+| link\_dokumentasi | string     | false      | Link Google Drive untuk foto kegiatan |
 
 **Get Jurnal with Comments**
 

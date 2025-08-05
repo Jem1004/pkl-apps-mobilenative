@@ -3,8 +3,8 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface ITempatPKL extends Document {
   _id: string;
   nama: string;
-  alamat: string;
-  kontak: string;
+  alamat?: string;
+  kontak?: string;
   email?: string;
   status: 'aktif' | 'nonaktif';
   created_at: Date;
@@ -20,13 +20,13 @@ const TempatPKLSchema: Schema = new Schema({
   },
   alamat: {
     type: String,
-    required: [true, 'Alamat is required'],
+    required: false,
     trim: true,
     maxlength: [500, 'Alamat cannot exceed 500 characters']
   },
   kontak: {
     type: String,
-    required: [true, 'Kontak is required'],
+    required: false,
     trim: true,
     maxlength: [20, 'Kontak cannot exceed 20 characters']
   },

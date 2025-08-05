@@ -62,10 +62,33 @@ export const useAuthStore = create<AuthStore>()(
             body: JSON.stringify({ username, password }),
           });
 
-          const data = await response.json();
+          // Check if response has content and is valid JSON
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned invalid response format');
+          }
+
+          // Check if response body is empty
+          const responseText = await response.text();
+          if (!responseText || responseText.trim() === '') {
+            throw new Error('Server returned empty response');
+          }
+
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            throw new Error('Server returned invalid JSON response');
+          }
 
           if (!response.ok) {
-            throw new Error(data.message || 'Login failed');
+            throw new Error(data?.error || data?.message || `Server error: ${response.status}`);
+          }
+
+          // Validate response structure
+          if (!data || !data.success || !data.data || !data.data.user || !data.data.token) {
+            throw new Error('Invalid response structure from server');
           }
 
           set({
@@ -76,12 +99,22 @@ export const useAuthStore = create<AuthStore>()(
             error: null,
           });
         } catch (error) {
+          console.error('Login error:', error);
+          
+          let errorMessage = 'Login failed';
+          
+          if (error instanceof TypeError && error.message.includes('fetch')) {
+            errorMessage = 'Cannot connect to server. Please check if the server is running.';
+          } else if (error instanceof Error) {
+            errorMessage = error.message;
+          }
+          
           set({
             user: null,
             token: null,
             isAuthenticated: false,
             isLoading: false,
-            error: error instanceof Error ? error.message : 'Login failed',
+            error: errorMessage,
           });
           throw error;
         }

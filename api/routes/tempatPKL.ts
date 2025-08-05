@@ -10,7 +10,8 @@ import {
   createTempatPKL,
   updateTempatPKL,
   deleteTempatPKL,
-  getStudentsByTempatPKL
+  getStudentsByTempatPKL,
+  bulkImportTempatPKL
 } from '../controllers/tempatPKLController.ts';
 import {
   authenticateToken,
@@ -54,6 +55,15 @@ router.get('/:id', authenticateToken, adminOrGuru, getTempatPKLById);
  * @access Admin only
  */
 router.post('/', authenticateToken, adminOnly, createTempatPKL);
+
+/**
+ * Bulk Import Tempat PKL
+ * POST /api/tempat-pkl/bulk-import
+ * @headers Authorization: Bearer <token>
+ * @body { data: Array<{ nama, alamat?, kontak?, email?, status? }> }
+ * @access Admin only
+ */
+router.post('/bulk-import', authenticateToken, adminOnly, bulkImportTempatPKL);
 
 /**
  * Update Tempat PKL
